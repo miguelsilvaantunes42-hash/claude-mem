@@ -23,7 +23,7 @@ if (process.env.CI && !chrome) throw new Error('CI requires Chrome or Chromium f
       (async()=>{try {
         const deadline=Date.now()+6000;
         let buttons=[];
-        while((buttons=[...document.querySelectorAll('button')].filter(b=>b.textContent==='facts')).length<2){if(Date.now()>deadline) throw new Error('Facts controls absent: found '+buttons.length+' of 2');await new Promise(r=>setTimeout(r,10));}
+        while((buttons=[...document.querySelectorAll('button')].filter(b=>b.textContent==='Facts')).length<2){if(Date.now()>deadline) throw new Error('Facts controls absent: found '+buttons.length+' of 2');await new Promise(r=>setTimeout(r,10));}
         for(const button of buttons) button.click();
         for(let i=0;i<4;i++) await new Promise(requestAnimationFrame);
         await fetch('/result',{method:'POST',body:JSON.stringify({facts:[...document.querySelectorAll('.facts-list li')].map(n=>n.textContent),text:document.body.textContent})});

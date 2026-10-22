@@ -24,13 +24,11 @@ export function PromptCard({ prompt }: PromptCardProps) {
   const clamped = isLong && !expanded;
 
   return (
-    <div className="card prompt-card">
+    <article className="card prompt-card">
       <div className="card-header">
         <div className="card-header-left">
           <span className="card-type">Prompt</span>
-          <span className={`card-source source-${prompt.platform_source || 'claude'}`}>
-            {prompt.platform_source || 'claude'}
-          </span>
+          <span className={`card-source source-${prompt.platform_source || 'claude'}`}>{prompt.platform_source || 'claude'}</span>
           <span className="card-project">{prompt.project}</span>
         </div>
       </div>
@@ -40,7 +38,7 @@ export function PromptCard({ prompt }: PromptCardProps) {
       {isLong && (
         <button
           type="button"
-          className="prompt-show-more"
+          className="btn btn-quiet prompt-show-more"
           aria-expanded={expanded}
           onClick={() => setExpanded(!expanded)}
         >
@@ -48,8 +46,9 @@ export function PromptCard({ prompt }: PromptCardProps) {
         </button>
       )}
       <div className="card-meta">
-        <span className="meta-date">#{prompt.id} • {date}</span>
+        <span className="meta-id">#{prompt.id}</span>
+        <time className="meta-date" dateTime={new Date(prompt.created_at_epoch).toISOString()}>{date}</time>
       </div>
-    </div>
+    </article>
   );
 }

@@ -109,7 +109,7 @@ for (const succeeds of [true, false]) {
       }
       await evaluate('[...document.querySelectorAll(".section-header-btn")].find(x=>x.textContent.includes("Advanced")).click()');
       await settle();
-      const model = '[...document.querySelectorAll(".form-field")].find(x=>x.textContent.startsWith("Codex Model")).querySelector("input")';
+      const model = '[...document.querySelectorAll(".form-field")].find(x=>x.textContent.startsWith("Codex model")).querySelector("input")';
       while (!await evaluate(`${model}.value === 'owned-before'`)) {
         if (Date.now() > renderDeadline) throw new Error('Settings did not load');
         await Bun.sleep(10);
@@ -119,7 +119,7 @@ for (const succeeds of [true, false]) {
       expect(await evaluate(`${model}.value`)).toBe('owned-A');
       await evaluate('document.querySelector(".save-btn").click()');
       const saveDeadline = Date.now() + 10000;
-      while (!posted || !await evaluate('document.querySelector(".save-btn").disabled')) {
+      while (!posted || !await evaluate('document.querySelector(".save-btn").getAttribute("aria-disabled") === "true"')) {
         if (Date.now() > saveDeadline) throw new Error('Save did not reach owned endpoint');
         await Bun.sleep(10);
       }
@@ -130,7 +130,7 @@ for (const succeeds of [true, false]) {
       const pendingValue = await evaluate(`${model}.value`);
       const toggleDisabled = await evaluate('document.querySelector("#show-last-summary").matches(":disabled")');
       release();
-      while (await evaluate('document.querySelector(".save-btn").disabled')) {
+      while (await evaluate('document.querySelector(".save-btn").getAttribute("aria-disabled") === "true"')) {
         if (Date.now() > saveDeadline) throw new Error('Save did not finish');
         await Bun.sleep(10);
       }

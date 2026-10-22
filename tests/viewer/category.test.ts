@@ -112,8 +112,8 @@ describe('labelForCategory', () => {
   });
 
   it('replaces underscores with spaces and title-cases each word', () => {
-    expect(labelForCategory('security_alert')).toBe('Security Alert');
-    expect(labelForCategory('security_note')).toBe('Security Note');
+    expect(labelForCategory('security_alert')).toBe('Security alert');
+    expect(labelForCategory('security_note')).toBe('Security note');
   });
 });
 

@@ -104,7 +104,7 @@ if (process.env.CI && !chrome) {
       }
       await evaluate('[...document.querySelectorAll(".section-header-btn")].find(x=>x.textContent.includes("Advanced")).click()');
       await settle();
-      const authSelects = '[...document.querySelectorAll(".form-field")].filter(x=>x.textContent.startsWith("Claude Auth Method")).map(x=>x.querySelector("select"))';
+      const authSelects = '[...document.querySelectorAll(".form-field")].filter(x=>x.textContent.startsWith("Claude auth method")).map(x=>x.querySelector("select"))';
       // The provider dropdowns' Claude options (other selects also carry a "claude" value, e.g. source filters).
       const claudeLabels = '[...document.querySelectorAll(\'option[value="claude"]\')].map(o=>o.textContent).filter(t=>t.startsWith("Claude ("))';
       while ((await evaluate(`${authSelects}.length`)) !== 2) {
