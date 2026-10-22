@@ -41,8 +41,8 @@ export function countByCategory(items: FeedItem[]): Record<string, number> {
   return counts;
 }
 
+/** Sentence case: `security_alert` → `Security alert`. */
 export function labelForCategory(category: string): string {
-  return category
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  const words = category.replace(/_/g, ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }

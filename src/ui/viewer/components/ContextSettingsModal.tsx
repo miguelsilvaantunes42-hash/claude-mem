@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useId, useRef } from 'react';
 import type { Settings } from '../types';
 import { TerminalPreview } from './TerminalPreview';
 import { useContextPreview } from '../hooks/useContextPreview';
@@ -6,6 +6,8 @@ import { DEFAULT_SETTINGS } from '../constants/settings';
 import { isClaudeMemObserverBaseUrl } from '../utils/observer-endpoint';
 import { claudeProviderOptionLabel } from '../utils/claude-auth-method';
 import { OPENAI_COMPAT_PRESET_OPTIONS, openAICompatPresetOption } from '../constants/openai-compat-presets';
+import { readSettingsDraft, pendingDraftFields, writeSettingsDraft, clearSettingsDraft } from '../utils/settings-draft';
+import { ErrorNotice } from './ErrorNotice';
 
 interface ContextSettingsModalProps {
   isOpen: boolean;
@@ -25,30 +27,43 @@ export function saveStatusClass(saveStatus: string): string {
   return saveStatus.includes('✗') ? 'error' : saveStatus.includes('✓') ? 'success' : '';
 }
 
+type SectionId = 'loading' | 'display' | 'advanced';
+
+const SECTIONS: { id: SectionId; title: string }[] = [
+  { id: 'loading', title: 'Loading' },
+  { id: 'display', title: 'Display' },
+  { id: 'advanced', title: 'Advanced' },
+];
+
 function CollapsibleSection({
+  id,
   title,
   description,
   children,
-  defaultOpen = true
+  isOpen,
+  onToggle,
 }: {
+  id: SectionId;
   title: string;
   description?: string;
   children: React.ReactNode;
-  defaultOpen?: boolean;
+  isOpen: boolean;
+  onToggle: () => void;
 }) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-
+  const contentId = `settings-section-${id}`;
   return (
-    <div className={`settings-section-collapsible ${isOpen ? 'open' : ''}`}>
+    <section id={`settings-${id}`} className={`settings-section-collapsible ${isOpen ? 'open' : ''}`} aria-labelledby={`${contentId}-title`}>
       <button
         className="section-header-btn"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={onToggle}
         type="button"
+        aria-expanded={isOpen}
+        aria-controls={contentId}
       >
-        <div className="section-header-content">
-          <span className="section-title">{title}</span>
+        <span className="section-header-content">
+          <span className="section-title" id={`${contentId}-title`}>{title}</span>
           {description && <span className="section-description">{description}</span>}
-        </div>
+        </span>
         <svg
           className={`chevron-icon ${isOpen ? 'rotated' : ''}`}
           width="16"
@@ -57,41 +72,92 @@ function CollapsibleSection({
           fill="none"
           stroke="currentColor"
           strokeWidth="2"
+          aria-hidden="true"
         >
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </button>
-      {isOpen && <div className="section-content">{children}</div>}
-    </div>
+      {isOpen && <div className="section-content" id={contentId}>{children}</div>}
+    </section>
   );
 }
 
+/**
+ * Label, control, optional help, and a blur-time error. The label is bound to
+ * the first input/select child; help sits behind a button instead of a hover
+ * title so keyboard and touch users can read it.
+ */
 function FormField({
   label,
   tooltip,
+  error,
   children
 }: {
   label: string;
   tooltip?: string;
+  error?: string | null;
   children: React.ReactNode;
 }) {
+  const id = useId();
+  const [showHelp, setShowHelp] = useState(false);
+  const helpId = `${id}-help`;
+  const errorId = `${id}-error`;
+  const describedBy = [showHelp && tooltip ? helpId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined;
+  let bound = false;
+  const controls = React.Children.map(children, child => {
+    if (bound || !React.isValidElement(child) || (child.type !== 'input' && child.type !== 'select')) return child;
+    bound = true;
+    const element = child as React.ReactElement<React.InputHTMLAttributes<HTMLInputElement>>;
+    return React.cloneElement(element, {
+      id,
+      'aria-describedby': describedBy,
+      'aria-invalid': error ? true : undefined,
+    });
+  });
+
   return (
-    <div className="form-field">
-      <label className="form-field-label">
-        {label}
-        {tooltip && (
-          <span className="tooltip-trigger" title={tooltip}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-          </span>
-        )}
-      </label>
-      {children}
+    <div className={`form-field${error ? ' form-field--invalid' : ''}`}>
+      <label className="form-field-label" htmlFor={id}>{label}</label>
+      {tooltip && (
+        <button
+          type="button"
+          className="icon-btn icon-btn--small form-field-help-btn"
+          aria-label={`About ${label}`}
+          aria-expanded={showHelp}
+          data-tooltip={showHelp ? 'Hide help' : 'Show help'}
+          onClick={() => setShowHelp(prev => !prev)}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+        </button>
+      )}
+      {showHelp && tooltip && <p className="form-field-help" id={helpId}>{tooltip}</p>}
+      {controls}
+      {error && <p className="form-field-error" id={errorId}>{error}</p>}
     </div>
   );
+}
+
+/** Whole-number fields and their allowed ranges. */
+const NUMBER_RULES: Partial<Record<keyof Settings, { min: number; max: number }>> = {
+  CLAUDE_MEM_CONTEXT_OBSERVATIONS: { min: 1, max: 200 },
+  CLAUDE_MEM_CONTEXT_SESSION_COUNT: { min: 1, max: 50 },
+  CLAUDE_MEM_CONTEXT_FULL_COUNT: { min: 0, max: 20 },
+  CLAUDE_MEM_WORKER_PORT: { min: 1024, max: 65535 },
+};
+
+export function numberFieldError(key: keyof Settings, value: string | undefined): string | null {
+  const rule = NUMBER_RULES[key];
+  if (!rule) return null;
+  const text = (value ?? '').trim();
+  const n = Number(text);
+  if (text === '' || !Number.isInteger(n) || n < rule.min || n > rule.max) {
+    return `Enter a whole number from ${rule.min} to ${rule.max}.`;
+  }
+  return null;
 }
 
 function ToggleSwitch({
@@ -142,13 +208,54 @@ export function ContextSettingsModal({
   saveStatus
 }: ContextSettingsModalProps) {
   const [formState, setFormState] = useState<Settings>(settings);
+  const [errors, setErrors] = useState<Partial<Record<keyof Settings, string>>>({});
+  const [openSections, setOpenSections] = useState<Record<SectionId, boolean>>({ loading: true, display: true, advanced: false });
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [blockedNotice, setBlockedNotice] = useState<string | null>(null);
+  const formRef = useRef<HTMLFieldSetElement>(null);
   // From the saved settings, not the form: the field stays editable while a
   // user types any other URL, and read-only for the observer's own endpoint.
   const observerManagesBaseUrl = isClaudeMemObserverBaseUrl(settings.CLAUDE_MEM_OPENROUTER_BASE_URL);
 
+  // Unsaved edits from an earlier visit come back on top of the loaded
+  // settings; secrets are never kept, so they always start from the file.
   useEffect(() => {
+    if (!isLoaded) {
+      setFormState(settings);
+      return;
+    }
+    const pending = pendingDraftFields(readSettingsDraft(), settings);
+    setFormState({ ...settings, ...pending });
+    setDraftRestored(Object.keys(pending).length > 0);
+  }, [settings, isLoaded]);
+
+  useEffect(() => {
+    if (isLoaded) writeSettingsDraft(formState, settings);
+  }, [formState, settings, isLoaded]);
+
+  useEffect(() => {
+    if (isLoaded) setBlockedNotice(null);
+  }, [isLoaded]);
+
+  const discardDraft = useCallback(() => {
+    clearSettingsDraft();
     setFormState(settings);
+    setErrors({});
+    setDraftRestored(false);
   }, [settings]);
+
+  const toggleSection = useCallback((id: SectionId) => {
+    setOpenSections(prev => ({ ...prev, [id]: !prev[id] }));
+  }, []);
+
+  const jumpToSection = useCallback((id: SectionId) => {
+    setOpenSections(prev => ({ ...prev, [id]: true }));
+    requestAnimationFrame(() => {
+      const section = document.getElementById(`settings-${id}`);
+      section?.scrollIntoView({ block: 'start' });
+      section?.querySelector<HTMLButtonElement>('.section-header-btn')?.focus({ preventScroll: true });
+    });
+  }, []);
 
   const {
     preview,
@@ -165,11 +272,41 @@ export function ContextSettingsModal({
   const updateSetting = useCallback((key: keyof Settings, value: string) => {
     const newState = { ...formState, [key]: value };
     setFormState(newState);
+    // An error clears on the first corrective keystroke, not on the next blur.
+    setErrors(prev => (prev[key] && !numberFieldError(key, value) ? { ...prev, [key]: undefined } : prev));
   }, [formState]);
 
+  /** Validation fires when a number field is left, never while typing. */
+  const numberField = (key: keyof Settings) => ({
+    onBlur: (e: React.FocusEvent<HTMLInputElement>) => {
+      const message = numberFieldError(key, e.target.value);
+      setErrors(prev => ({ ...prev, [key]: message ?? undefined }));
+    },
+  });
+
   const handleSave = useCallback(() => {
+    if (isSaving) return;
+    if (!isLoaded) {
+      setBlockedNotice(loadError ? null : 'Save works once your saved settings finish loading.');
+      return;
+    }
+    const nextErrors: Partial<Record<keyof Settings, string>> = {};
+    for (const key of Object.keys(NUMBER_RULES) as (keyof Settings)[]) {
+      const message = numberFieldError(key, formState[key]);
+      if (message) nextErrors[key] = message;
+    }
+    if (Object.keys(nextErrors).length) {
+      setErrors(nextErrors);
+      if (nextErrors.CLAUDE_MEM_WORKER_PORT) setOpenSections(prev => ({ ...prev, advanced: true }));
+      requestAnimationFrame(() => {
+        const invalid = formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
+        invalid?.scrollIntoView({ block: 'center' });
+        invalid?.focus();
+      });
+      return;
+    }
     onSave(formState);
-  }, [formState, onSave]);
+  }, [formState, onSave, isSaving, isLoaded, loadError]);
 
   const toggleBoolean = useCallback((key: keyof Settings) => {
     const currentValue = formState[key];
@@ -177,89 +314,57 @@ export function ContextSettingsModal({
     updateSetting(key, newValue);
   }, [formState, updateSetting]);
 
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    if (isOpen) {
-      window.addEventListener('keydown', handleEsc);
-      return () => window.removeEventListener('keydown', handleEsc);
-    }
-  }, [isOpen, onClose]);
-
   if (!isOpen) return null;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="context-settings-modal" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="modal-header">
-          <h2>Settings</h2>
-          <div className="header-controls">
-            <label className="preview-selector">
-              Source:
-              <select
-                value={selectedSource || ''}
-                onChange={(e) => setSelectedSource(e.target.value)}
-                disabled={sources.length === 0}
-              >
-                <option value="">All sources</option>
-                {sources.map(source => (
-                  <option key={source} value={source}>{source}</option>
-                ))}
-              </select>
-            </label>
-            <label className="preview-selector">
-              Project:
-              <select
-                value={selectedProject || ''}
-                onChange={(e) => setSelectedProject(e.target.value)}
-                disabled={projects.length === 0}
-              >
-                {projects.map(project => (
-                  <option key={project} value={project}>{project}</option>
-                ))}
-              </select>
-            </label>
-            <button
-              onClick={onClose}
-              className="modal-close-btn"
-              title="Close (Esc)"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
+    <div className="settings-page context-settings-modal">
+      <div className="settings-page-inner">
+        <div className="settings-page-header">
+          <div>
+            <h2 className="page-title">Settings</h2>
+            <p className="page-description">Choose what claude-mem injects when a session starts and which model writes your observations.</p>
           </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn btn-secondary modal-close-btn"
+          >
+            Close settings
+          </button>
         </div>
 
-        {/* Body - 2 columns */}
-        <div className="modal-body">
-          {/* Left column - Terminal Preview */}
-          <div className="preview-column">
-            <div className="preview-content">
-              {error ? (
-                <div style={{ color: 'var(--color-accent-error)' }}>
-                  Error loading preview: {error}
-                </div>
-              ) : (
-                <TerminalPreview content={preview} isLoading={isLoading} />
-              )}
-            </div>
-          </div>
+        <div className="settings-layout">
+          <nav className="settings-nav" aria-label="Settings sections">
+            {SECTIONS.map(section => (
+              <button key={section.id} type="button" className="settings-nav-item" onClick={() => jumpToSection(section.id)}>
+                {section.title}
+              </button>
+            ))}
+          </nav>
 
+          <div className="settings-form">
+            {draftRestored && (
+              <div className="settings-draft-notice" role="status">
+                <span>Unsaved changes from your last visit are restored.</span>
+                <button type="button" className="btn btn-quiet" onClick={discardDraft}>Discard changes</button>
+              </div>
+            )}
           {/* Right column - Settings Panel. Before the initial load the form
               holds defaults; saving them would overwrite settings.json. */}
-          <fieldset className="settings-column" disabled={isSaving || !isLoaded}
+          <fieldset ref={formRef} className="settings-column" disabled={isSaving || !isLoaded}
             style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
+            <legend className="visually-hidden">Settings</legend>
             {/* Section 1: Loading */}
             <CollapsibleSection
+              id="loading"
               title="Loading"
               description="How many observations to inject"
+              isOpen={openSections.loading}
+              onToggle={() => toggleSection('loading')}
             >
               <FormField
                 label="Observations"
+                  error={errors.CLAUDE_MEM_CONTEXT_OBSERVATIONS}
                 tooltip="Number of recent observations to include in context (1-200)"
               >
                 <input
@@ -267,6 +372,7 @@ export function ContextSettingsModal({
                   min="1"
                   max="200"
                   value={formState.CLAUDE_MEM_CONTEXT_OBSERVATIONS || DEFAULT_SETTINGS.CLAUDE_MEM_CONTEXT_OBSERVATIONS}
+                  {...numberField('CLAUDE_MEM_CONTEXT_OBSERVATIONS')}
                   onChange={(e) => updateSetting('CLAUDE_MEM_CONTEXT_OBSERVATIONS', e.target.value || DEFAULT_SETTINGS.CLAUDE_MEM_CONTEXT_OBSERVATIONS)}
                 />
               </FormField>
@@ -279,6 +385,7 @@ export function ContextSettingsModal({
               />
               <FormField
                 label="Sessions"
+                  error={errors.CLAUDE_MEM_CONTEXT_SESSION_COUNT}
                 tooltip="Number of recent sessions to pull observations from (1-50)"
               >
                 <input
@@ -286,6 +393,7 @@ export function ContextSettingsModal({
                   min="1"
                   max="50"
                   value={formState.CLAUDE_MEM_CONTEXT_SESSION_COUNT || DEFAULT_SETTINGS.CLAUDE_MEM_CONTEXT_SESSION_COUNT}
+                  {...numberField('CLAUDE_MEM_CONTEXT_SESSION_COUNT')}
                   onChange={(e) => updateSetting('CLAUDE_MEM_CONTEXT_SESSION_COUNT', e.target.value || DEFAULT_SETTINGS.CLAUDE_MEM_CONTEXT_SESSION_COUNT)}
                 />
               </FormField>
@@ -293,13 +401,17 @@ export function ContextSettingsModal({
 
             {/* Section 2: Display */}
             <CollapsibleSection
+              id="display"
               title="Display"
               description="What to show in context tables"
+              isOpen={openSections.display}
+              onToggle={() => toggleSection('display')}
             >
               <div className="display-subsection">
-                <span className="subsection-label">Full Observations</span>
+                <h4 className="subsection-label">Full observations</h4>
                 <FormField
                   label="Count"
+                  error={errors.CLAUDE_MEM_CONTEXT_FULL_COUNT}
                   tooltip="How many observations show expanded details (0-20)"
                 >
                   <input
@@ -307,7 +419,8 @@ export function ContextSettingsModal({
                     min="0"
                     max="20"
                     value={formState.CLAUDE_MEM_CONTEXT_FULL_COUNT || DEFAULT_SETTINGS.CLAUDE_MEM_CONTEXT_FULL_COUNT}
-                    onChange={(e) => updateSetting('CLAUDE_MEM_CONTEXT_FULL_COUNT', e.target.value || DEFAULT_SETTINGS.CLAUDE_MEM_CONTEXT_FULL_COUNT)}
+                    {...numberField('CLAUDE_MEM_CONTEXT_FULL_COUNT')}
+                  onChange={(e) => updateSetting('CLAUDE_MEM_CONTEXT_FULL_COUNT', e.target.value || DEFAULT_SETTINGS.CLAUDE_MEM_CONTEXT_FULL_COUNT)}
                   />
                 </FormField>
                 <FormField
@@ -325,7 +438,7 @@ export function ContextSettingsModal({
               </div>
 
               <div className="display-subsection">
-                <span className="subsection-label">Token Economics</span>
+                <h4 className="subsection-label">Token economics</h4>
                 <div className="toggle-group">
                   <ToggleSwitch
                     id="show-read-tokens"
@@ -354,12 +467,14 @@ export function ContextSettingsModal({
 
             {/* Section 4: Advanced */}
             <CollapsibleSection
+              id="advanced"
               title="Advanced"
               description="AI provider and model selection"
-              defaultOpen={false}
+              isOpen={openSections.advanced}
+              onToggle={() => toggleSection('advanced')}
             >
               <FormField
-                label="AI Provider"
+                label="AI provider"
                 tooltip="Choose the provider that generates observations: Claude (via Agent SDK), Gemini (via REST API), OpenRouter (also used by the claude-mem observer), Codex (your ChatGPT subscription), or any OpenAI-compatible endpoint"
               >
                 <select
@@ -377,7 +492,7 @@ export function ContextSettingsModal({
               {formState.CLAUDE_MEM_PROVIDER === 'claude' && (
                 <>
                   <FormField
-                    label="Claude Model"
+                    label="Claude model"
                     tooltip="Claude model used for generating observations"
                   >
                     <select
@@ -390,7 +505,7 @@ export function ContextSettingsModal({
                     </select>
                   </FormField>
                   <FormField
-                    label="Claude Auth Method"
+                    label="Claude auth method"
                     tooltip="Records which Claude credential this install uses: your Claude account login (subscription), an ANTHROPIC_API_KEY (api-key), a custom ANTHROPIC_BASE_URL endpoint (gateway), or Claude Code's own credentials (cli). The credential itself comes from ~/.claude-mem/.env: an ANTHROPIC_BASE_URL or ANTHROPIC_API_KEY there is used even when this says subscription. Shared with the Quota Fallback Claude option."
                   >
                     <select
@@ -408,14 +523,14 @@ export function ContextSettingsModal({
 
               {formState.CLAUDE_MEM_PROVIDER === 'codex' && (
                 <FormField
-                  label="Codex Model"
+                  label="Codex model"
                   tooltip="Optional model available through your Codex subscription; leave empty for the Codex default. Run codex login before starting the worker."
                 >
                   <input
                     type="text"
                     value={formState.CLAUDE_MEM_CODEX_MODEL || ''}
                     onChange={(e) => updateSetting('CLAUDE_MEM_CODEX_MODEL', e.target.value)}
-                    placeholder="Codex default (e.g. gpt-6-luna)"
+                    placeholder="gpt-6-luna"
                   />
                 </FormField>
               )}
@@ -423,18 +538,18 @@ export function ContextSettingsModal({
               {formState.CLAUDE_MEM_PROVIDER === 'gemini' && (
                 <>
                   <FormField
-                    label="Gemini API Key"
+                    label="Gemini API key"
                     tooltip="Your Google AI Studio API key (or set GEMINI_API_KEY env var)"
                   >
                     <input
                       type="password"
                       value={formState.CLAUDE_MEM_GEMINI_API_KEY || ''}
                       onChange={(e) => updateSetting('CLAUDE_MEM_GEMINI_API_KEY', e.target.value)}
-                      placeholder="Enter Gemini API key..."
+                      placeholder="AIza…"
                     />
                   </FormField>
                   <FormField
-                    label="Gemini Model"
+                    label="Gemini model"
                     tooltip="Gemini model used for generating observations"
                   >
                     <select
@@ -451,7 +566,7 @@ export function ContextSettingsModal({
                   <div className="toggle-group" style={{ marginTop: '8px' }}>
                     <ToggleSwitch
                       id="gemini-rate-limiting"
-                      label="Rate Limiting"
+                      label="Rate limiting"
                       description="Enable for free tier (10-30 RPM). Disable if you have billing set up (1000+ RPM)."
                       checked={formState.CLAUDE_MEM_GEMINI_RATE_LIMITING_ENABLED === 'true'}
                       onChange={(checked) => updateSetting('CLAUDE_MEM_GEMINI_RATE_LIMITING_ENABLED', checked ? 'true' : 'false')}
@@ -463,18 +578,18 @@ export function ContextSettingsModal({
               {formState.CLAUDE_MEM_PROVIDER === 'openrouter' && (
                 <>
                   <FormField
-                    label="OpenRouter API Key"
+                    label="OpenRouter API key"
                     tooltip="Your OpenRouter API key from openrouter.ai (or set OPENROUTER_API_KEY env var)"
                   >
                     <input
                       type="password"
                       value={formState.CLAUDE_MEM_OPENROUTER_API_KEY || ''}
                       onChange={(e) => updateSetting('CLAUDE_MEM_OPENROUTER_API_KEY', e.target.value)}
-                      placeholder="Enter OpenRouter API key..."
+                      placeholder="sk-or-v1-…"
                     />
                   </FormField>
                   <FormField
-                    label="OpenRouter Model"
+                    label="OpenRouter model"
                     tooltip="Model identifier from openrouter.ai/models (e.g., anthropic/claude-haiku-4.5, google/gemini-2.5-flash)"
                   >
                     <input
@@ -485,7 +600,7 @@ export function ContextSettingsModal({
                     />
                   </FormField>
                   <FormField
-                    label="OpenRouter Base URL"
+                    label="OpenRouter base URL"
                     tooltip={observerManagesBaseUrl
                       ? 'Managed by the claude-mem observer. Run npx claude-mem install to use your own endpoint.'
                       : 'Optional OpenAI-compatible base URL. Leave blank to use openrouter.ai.'}
@@ -517,18 +632,18 @@ export function ContextSettingsModal({
                     </FormField>
                   )}
                   <FormField
-                    label="Site URL (Optional)"
+                    label="Site URL (optional)"
                     tooltip="Your site URL for OpenRouter analytics (optional)"
                   >
                     <input
                       type="text"
                       value={formState.CLAUDE_MEM_OPENROUTER_SITE_URL || ''}
                       onChange={(e) => updateSetting('CLAUDE_MEM_OPENROUTER_SITE_URL', e.target.value)}
-                      placeholder="https://yoursite.com"
+                      placeholder="https://example.com"
                     />
                   </FormField>
                   <FormField
-                    label="App Name (Optional)"
+                    label="App name (optional)"
                     tooltip="Your app name for OpenRouter analytics (optional)"
                   >
                     <input
@@ -592,7 +707,7 @@ export function ContextSettingsModal({
               )}
 
               <FormField
-                label="Quota Fallback"
+                label="Quota fallback"
                 tooltip="While the selected provider cannot serve (allowance spent, rate limited or over capacity past its retries, unavailable, or repeatedly returning unusable replies), send observation work here until it recovers. Claude (your Anthropic plan) is the default and is used only when a Claude login or key exists. Off: work waits for the provider."
               >
                 <select
@@ -610,8 +725,8 @@ export function ContextSettingsModal({
               {(formState.CLAUDE_MEM_QUOTA_FALLBACK_PROVIDER || 'claude') === 'claude' && (
                 <>
                   <FormField
-                    label="Claude Auth Method"
-                    tooltip="The same CLAUDE_MEM_CLAUDE_AUTH_METHOD setting as the AI Provider's Claude Auth Method. Fallback Claude runs use the same credential, which comes from ~/.claude-mem/.env when an ANTHROPIC_BASE_URL or ANTHROPIC_API_KEY is set there."
+                    label="Claude auth method"
+                    tooltip="The same CLAUDE_MEM_CLAUDE_AUTH_METHOD setting as the AI provider's Claude auth method. Fallback Claude runs use the same credential, which comes from ~/.claude-mem/.env when an ANTHROPIC_BASE_URL or ANTHROPIC_API_KEY is set there."
                   >
                     <select
                       value={formState.CLAUDE_MEM_CLAUDE_AUTH_METHOD || 'subscription'}
@@ -624,7 +739,7 @@ export function ContextSettingsModal({
                     </select>
                   </FormField>
                   <FormField
-                    label="Fallback Claude Model"
+                    label="Fallback Claude model"
                     tooltip="Claude model for fallback runs only. Blank uses the Claude Model setting and tier routing."
                   >
                     <input
@@ -646,7 +761,7 @@ export function ContextSettingsModal({
                   value={formState.CLAUDE_CODE_PATH || ''}
                   readOnly
                   disabled
-                  placeholder="Auto-detect (set via settings.json or env)"
+                  placeholder="Auto-detected"
                 />
                 <span className="toggle-description">
                   Read-only here. Set <code>CLAUDE_CODE_PATH</code> in <code>~/.claude-mem/settings.json</code> or the environment.
@@ -654,7 +769,8 @@ export function ContextSettingsModal({
               </FormField>
 
               <FormField
-                label="Worker Port"
+                label="Worker port"
+                  error={errors.CLAUDE_MEM_WORKER_PORT}
                 tooltip="Port for the background worker service"
               >
                 <input
@@ -662,6 +778,7 @@ export function ContextSettingsModal({
                   min="1024"
                   max="65535"
                   value={formState.CLAUDE_MEM_WORKER_PORT || DEFAULT_SETTINGS.CLAUDE_MEM_WORKER_PORT}
+                  {...numberField('CLAUDE_MEM_WORKER_PORT')}
                   onChange={(e) => updateSetting('CLAUDE_MEM_WORKER_PORT', e.target.value)}
                 />
               </FormField>
@@ -691,29 +808,72 @@ export function ContextSettingsModal({
               </div>
             </CollapsibleSection>
           </fieldset>
-        </div>
 
-        {/* Footer with Save button */}
-        <div className="modal-footer">
-          <div className="save-status">
-            {loadError ? (
-              <span className="error" role="alert">
-                {loadError}{' '}
-                <button type="button" onClick={onRetryLoad}>Retry</button>
-              </span>
-            ) : !isLoaded ? (
-              <span>Loading settings…</span>
-            ) : (
-              saveStatus && <span className={saveStatusClass(saveStatus)}>{saveStatus}</span>
-            )}
+            <div className="modal-footer settings-footer">
+              <div className="save-status">
+                {loadError ? (
+                  <ErrorNotice
+                    className="error-notice--inline"
+                    message="Your saved settings could not be loaded, so Save is paused to keep them safe."
+                    detail={loadError}
+                    onRetry={onRetryLoad}
+                  />
+                ) : !isLoaded ? (
+                  <span>{blockedNotice ? `Loading settings… ${blockedNotice}` : 'Loading settings…'}</span>
+                ) : (
+                  saveStatus && <span className={saveStatusClass(saveStatus)} role="status">{saveStatus}</span>
+                )}
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary save-btn"
+                onClick={handleSave}
+                aria-disabled={isSaving || !isLoaded}
+              >
+                {isSaving ? 'Saving...' : 'Save changes'}
+              </button>
+            </div>
           </div>
-          <button
-            className="save-btn"
-            onClick={handleSave}
-            disabled={isSaving || !isLoaded}
-          >
-            {isSaving ? 'Saving...' : 'Save'}
-          </button>
+
+          <aside className="preview-column" aria-label="Context preview">
+            <div className="preview-controls">
+              <label className="preview-selector">
+                <span>Source</span>
+                <select
+                  value={selectedSource || ''}
+                  onChange={(e) => setSelectedSource(e.target.value)}
+                  disabled={sources.length === 0}
+                >
+                  <option value="">All sources</option>
+                  {sources.map(source => (
+                    <option key={source} value={source}>{source}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="preview-selector">
+                <span>Project</span>
+                <select
+                  value={selectedProject || ''}
+                  onChange={(e) => setSelectedProject(e.target.value)}
+                  disabled={projects.length === 0}
+                >
+                  {projects.map(project => (
+                    <option key={project} value={project}>{project}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="preview-content">
+              {error ? (
+                <ErrorNotice
+                  message="The preview could not be built. Your settings still save normally."
+                  detail={error}
+                />
+              ) : (
+                <TerminalPreview content={preview} isLoading={isLoading} />
+              )}
+            </div>
+          </aside>
         </div>
       </div>
     </div>

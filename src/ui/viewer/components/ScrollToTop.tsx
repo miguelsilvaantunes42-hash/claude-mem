@@ -27,7 +27,7 @@ export function ScrollToTop({ targetRef }: ScrollToTopProps) {
     if (target) {
       target.scrollTo({
         top: 0,
-        behavior: 'smooth'
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
       });
     }
   };
@@ -36,9 +36,13 @@ export function ScrollToTop({ targetRef }: ScrollToTopProps) {
 
   return (
     <button
+      type="button"
       onClick={scrollToTop}
-      className="scroll-to-top"
+      className="icon-btn scroll-to-top"
       aria-label="Scroll to top"
+      data-tooltip="Scroll to top"
+      data-tooltip-side="top"
+      data-tooltip-align="end"
     >
       <svg
         width="20"
@@ -49,6 +53,7 @@ export function ScrollToTop({ targetRef }: ScrollToTopProps) {
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
+        aria-hidden="true"
       >
         <polyline points="18 15 12 9 6 15"></polyline>
       </svg>

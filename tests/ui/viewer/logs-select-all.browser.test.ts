@@ -33,7 +33,7 @@ const chrome = Bun.which('google-chrome') ?? Bun.which('chromium')
         function chips(filters) {
           return {
             active: filters.querySelectorAll('.console-filter-chip.active').length,
-            action: filters.querySelector('.console-filter-action').title,
+            action: filters.querySelector('.console-filter-action').textContent,
           };
         }
         (async () => {

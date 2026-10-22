@@ -5,24 +5,35 @@ import { ObservationCard } from './ObservationCard';
 import { SummaryCard } from './SummaryCard';
 import { PromptCard } from './PromptCard';
 import { ScrollToTop } from './ScrollToTop';
+import { ErrorNotice } from './ErrorNotice';
+import { EmptyState, FeedSkeleton, useDelayedFlag } from './FeedStates';
 import { UI } from '../constants/ui';
 
 interface FeedProps {
   /** Newest first; build with buildFeedItems. */
   items: FeedItem[];
-  /** Rendered at the top of the scrolling column (view tabs, session header). */
+  /** Rendered at the top of the scrolling column (page header, session header). */
   header?: React.ReactNode;
   onLoadMore: () => void;
   onDeleted: (itemType: DeletableItemType, id: number) => void;
   isLoading: boolean;
   hasMore: boolean;
   loadError?: string | null;
+  /** The header's project filter, when one narrows this feed. */
+  projectFilter?: string;
+  onClearProjectFilter?: () => void;
+  /** Replaces the default first-use empty state (e.g. a filtered session). */
+  emptyState?: React.ReactNode;
 }
 
-export function Feed({ items, header, onLoadMore, onDeleted, isLoading, hasMore, loadError }: FeedProps) {
+export function Feed({
+  items, header, onLoadMore, onDeleted, isLoading, hasMore, loadError,
+  projectFilter, onClearProjectFilter, emptyState,
+}: FeedProps) {
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const feedRef = useRef<HTMLDivElement>(null);
   const onLoadMoreRef = useRef(onLoadMore);
+  const showLoader = useDelayedFlag(isLoading);
 
   useEffect(() => {
     onLoadMoreRef.current = onLoadMore;
@@ -56,6 +67,8 @@ export function Feed({ items, header, onLoadMore, onDeleted, isLoading, hasMore,
     };
   }, [hasMore, isLoading, loadError]);
 
+  const isEmpty = items.length === 0;
+
   return (
     <div className="feed" ref={feedRef}>
       <ScrollToTop targetRef={feedRef} />
@@ -71,30 +84,46 @@ export function Feed({ items, header, onLoadMore, onDeleted, isLoading, hasMore,
             return <PromptCard key={key} prompt={item} />;
           }
         })}
-        {items.length === 0 && !isLoading && (
-          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--color-text-muted)' }}>
-            No items to display
-          </div>
-        )}
-        {isLoading && (
-          <div style={{ textAlign: 'center', padding: '20px', color: 'var(--color-text-muted)' }}>
-            <div className="spinner" style={{ display: 'inline-block', marginRight: '10px' }}></div>
+        {isEmpty && !isLoading && !loadError && (emptyState ?? (projectFilter ? (
+          <EmptyState
+            title={`Nothing captured for ${projectFilter} yet`}
+            description="Memories appear here once a session in this project records an observation, summary, or prompt."
+            action={onClearProjectFilter && (
+              <button type="button" className="btn btn-primary" onClick={onClearProjectFilter}>Show all projects</button>
+            )}
+          />
+        ) : (
+          <EmptyState
+            title="No memories yet"
+            description="Start a Claude Code session in any project. Observations, summaries, and prompts stream in here as Claude works, and the next session starts with them."
+            action={(
+              <a className="btn btn-primary" href="https://docs.claude-mem.ai" target="_blank" rel="noopener noreferrer">
+                Read the getting started guide
+              </a>
+            )}
+          />
+        )))}
+        {isEmpty && showLoader && <FeedSkeleton />}
+        {!isEmpty && showLoader && (
+          <div className="feed-status" role="status">
+            <span className="spinner" aria-hidden="true"></span>
             Loading more...
           </div>
         )}
         {loadError && !isLoading && (
-          <div role="alert" style={{ textAlign: 'center', padding: '20px' }}>
-            <p>{loadError}</p>
-            <button onClick={onLoadMore}>Retry</button>
-          </div>
+          <ErrorNotice
+            message={isEmpty
+              ? 'Memories could not be loaded from the worker. Nothing was lost; retry once the worker is running.'
+              : 'Older memories could not be loaded. The ones above are unaffected; retry to continue.'}
+            detail={loadError}
+            onRetry={onLoadMore}
+          />
         )}
         {hasMore && !isLoading && !loadError && (
-          <div ref={loadMoreRef} style={{ height: '20px', margin: '10px 0' }} />
+          <div ref={loadMoreRef} className="feed-sentinel" />
         )}
-        {!hasMore && items.length > 0 && (
-          <div style={{ textAlign: 'center', padding: '20px', color: 'var(--color-text-muted)', fontSize: '14px' }}>
-            No more items to load
-          </div>
+        {!hasMore && !isEmpty && (
+          <p className="feed-end">You have reached the oldest memory.</p>
         )}
       </div>
     </div>

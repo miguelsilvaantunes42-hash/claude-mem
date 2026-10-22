@@ -27,7 +27,7 @@ for (const mode of ['more', 'exhausted', 'loading'] as const) {
         import { createRoot } from 'react-dom/client';
         import { SessionDetailPage } from './src/ui/viewer/components/SessionDetailPage';
         import { removeLoadedRow } from './src/ui/viewer/utils/feed-deletion';
-        window.confirm = () => true;
+        new MutationObserver(()=>document.querySelector('.confirm-dialog-confirm')?.click()).observe(document.body,{childList:true,subtree:true});
         function Probe() {
           const [items, setItems] = useState(${JSON.stringify(items)});
           const [loading, setLoading] = useState(${mode === 'loading'});

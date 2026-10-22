@@ -5,6 +5,13 @@ export type ResolvedTheme = 'light' | 'dark';
 
 const STORAGE_KEY = 'claude-mem-theme';
 
+const THEME_CYCLE: ThemePreference[] = ['system', 'light', 'dark'];
+
+/** The preference after `preference` in the System → Light → Dark cycle. */
+export function nextThemePreference(preference: ThemePreference): ThemePreference {
+  return THEME_CYCLE[(THEME_CYCLE.indexOf(preference) + 1) % THEME_CYCLE.length];
+}
+
 function getSystemTheme(): ResolvedTheme {
   if (typeof window === 'undefined') return 'dark';
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';

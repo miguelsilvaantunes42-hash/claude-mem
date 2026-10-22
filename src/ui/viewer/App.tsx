@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect } from 'react';
 import { Header } from './components/Header';
 import { Feed } from './components/Feed';
-import { ViewTabs, type ViewTab } from './components/ViewTabs';
+import { ViewTabs, PageHeader, type ViewTab } from './components/ViewTabs';
 import { SessionList } from './components/SessionList';
 import { SessionDetailPage } from './components/SessionDetailPage';
 import { ContextSettingsModal } from './components/ContextSettingsModal';
@@ -25,6 +25,7 @@ import {
   sessionKey,
   sessionRefOf,
   sessionsHash,
+  settingsHash,
   type SessionRef,
   type SessionScopedRow,
   type ViewRoute,
@@ -41,7 +42,7 @@ function feedScopeKey(scope: FeedScope): string {
 }
 
 function scopeForRoute(route: ViewRoute, project: string): FeedScope | null {
-  if (route.view === 'sessions') return null;
+  if (route.view === 'sessions' || route.view === 'settings') return null;
   if (route.view === 'session') return { project: '', session: route.session };
   return { project, session: null };
 }
@@ -52,7 +53,6 @@ function navigate(hash: string): void {
 
 export function App() {
   const [currentFilter, setCurrentFilter] = useState('');
-  const [contextPreviewOpen, setContextPreviewOpen] = useState(false);
   const [logsModalOpen, setLogsModalOpen] = useState(false);
   const [welcomeDismissed, setWelcomeDismissed] = useState<boolean>(getStoredWelcomeDismissed);
   const [paginatedObservations, setPaginatedObservations] = useState<Observation[]>([]);
@@ -151,10 +151,19 @@ export function App() {
       .sort((a, b) => b.started_at_epoch - a.started_at_epoch);
   }, [catalog.sessions, currentFilter]);
 
-  const toggleContextPreview = useCallback(() => {
-    setContextPreviewOpen(prev => !prev);
+  // Settings is its own route; closing it returns to the view it was opened from.
+  const settingsReturnHashRef = useRef('');
+  const openSettings = useCallback(() => {
+    if (parseViewRoute(window.location.hash).view !== 'settings') {
+      settingsReturnHashRef.current = window.location.hash;
+    }
+    navigate(settingsHash());
+  }, []);
+  const closeSettings = useCallback(() => {
+    navigate(settingsReturnHashRef.current);
   }, []);
 
+  const consoleToggleRef = useRef<HTMLButtonElement>(null);
   const toggleLogsModal = useCallback(() => {
     setLogsModalOpen(prev => !prev);
   }, []);
@@ -299,13 +308,37 @@ export function App() {
       onSelect={tab => navigate(tab === 'sessions' ? sessionsHash() : '')}
     />
   );
+  const pageHeader = (
+    <PageHeader
+      tabs={tabs}
+      description={route.view === 'timeline'
+        ? 'Observations, summaries, and prompts captured as you work, newest first.'
+        : 'Every coding session claude-mem recorded, with the memories captured in it.'}
+    />
+  );
 
   let content: React.ReactNode;
-  if (route.view === 'sessions') {
+  if (route.view === 'settings') {
+    content = (
+      <ContextSettingsModal
+        isOpen={true}
+        onClose={closeSettings}
+        settings={settings}
+        isLoaded={settingsLoaded}
+        loadError={settingsLoadError}
+        onRetryLoad={reloadSettings}
+        onSave={saveSettings}
+        isSaving={isSaving}
+        saveStatus={saveStatus}
+      />
+    );
+  } else if (route.view === 'sessions') {
     content = (
       <SessionList
-        header={tabs}
+        header={pageHeader}
         sessions={visibleSessions}
+        projectFilter={currentFilter}
+        onClearProjectFilter={() => setCurrentFilter('')}
         isLoading={catalog.isLoading}
         hasMore={catalog.hasMore}
         loadError={catalog.loadError}
@@ -333,8 +366,10 @@ export function App() {
   } else {
     content = (
       <Feed
-        header={tabs}
+        header={pageHeader}
         items={feedItems}
+        projectFilter={currentFilter}
+        onClearProjectFilter={() => setCurrentFilter('')}
         onLoadMore={handleLoadMore}
         onDeleted={removeDeletedItem}
         isLoading={isLoading}
@@ -354,7 +389,7 @@ export function App() {
         queueDepth={queueDepth}
         themePreference={preference}
         onThemeChange={setThemePreference}
-        onContextPreviewToggle={toggleContextPreview}
+        onContextPreviewToggle={openSettings}
         onShowHelp={() => {
           setStoredWelcomeDismissed(false);
           setWelcomeDismissed(false);
@@ -362,30 +397,26 @@ export function App() {
         showTeamBrainLink={settingsLoaded && !settings.CLAUDE_MEM_TEAMBRAIN_URL?.trim()}
       />
 
-      {content}
+      <main className="app-main">
+        {content}
+      </main>
 
       {!welcomeDismissed && (
         <WelcomeCard onDismiss={() => setWelcomeDismissed(true)} />
       )}
 
-      <ContextSettingsModal
-        isOpen={contextPreviewOpen}
-        onClose={toggleContextPreview}
-        settings={settings}
-        isLoaded={settingsLoaded}
-        loadError={settingsLoadError}
-        onRetryLoad={reloadSettings}
-        onSave={saveSettings}
-        isSaving={isSaving}
-        saveStatus={saveStatus}
-      />
-
       <button
-        className="console-toggle-btn"
+        ref={consoleToggleRef}
+        type="button"
+        className="icon-btn console-toggle-btn"
         onClick={toggleLogsModal}
-        title="Toggle Console"
+        aria-label={logsModalOpen ? 'Close console' : 'Open console'}
+        aria-expanded={logsModalOpen}
+        data-tooltip={logsModalOpen ? 'Close console' : 'Open console'}
+        data-tooltip-side="top"
+        data-tooltip-align="start"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <polyline points="4 17 10 11 4 5"></polyline>
           <line x1="12" y1="19" x2="20" y2="19"></line>
         </svg>
@@ -393,7 +424,10 @@ export function App() {
 
       <LogsDrawer
         isOpen={logsModalOpen}
-        onClose={toggleLogsModal}
+        onClose={() => {
+          setLogsModalOpen(false);
+          consoleToggleRef.current?.focus();
+        }}
       />
     </>
   );
