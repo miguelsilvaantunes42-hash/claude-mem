@@ -40,7 +40,7 @@ interface PageHeaderProps {
 export function PageHeader({ tabs, description }: PageHeaderProps) {
   return (
     <div className="page-header">
-      <h2 className="page-title">Memory</h2>
+      <h2 className="page-title">Memory universe</h2>
       <p className="page-description">{description}</p>
       {tabs}
     </div>

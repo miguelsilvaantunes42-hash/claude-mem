@@ -109,6 +109,8 @@
       --color-danger: #c4222b;
       --color-danger-hover: #a51c24;
       --color-danger-soft: rgba(196, 34, 43, 0.08);
+      --sky-bg: #131a2c;
+      --sky-border: rgba(19, 26, 44, 0.9);
 
       /* Font families */
       --font-terminal: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
@@ -206,6 +208,8 @@
       --color-danger: #f0717a;
       --color-danger-hover: #f58d94;
       --color-danger-soft: rgba(240, 113, 122, 0.12);
+      --sky-bg: #0d1220;
+      --sky-border: rgba(232, 226, 216, 0.11);
 
       /* Font families */
       --font-terminal: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
@@ -305,6 +309,8 @@
         --color-danger: #f0717a;
         --color-danger-hover: #f58d94;
         --color-danger-soft: rgba(240, 113, 122, 0.12);
+        --sky-bg: #0d1220;
+        --sky-border: rgba(232, 226, 216, 0.11);
 
         /* Font families */
         --font-terminal: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
@@ -2603,6 +2609,105 @@
 
     .filter-clear {
       min-height: 32px;
+    }
+
+    /* ---------- Memory universe: the one bold moment ---------- */
+    /* Every loaded memory is a star; the sky is the same deep night in both themes. */
+    .universe {
+      margin: 0 0 24px;
+    }
+
+    .universe-sky-frame {
+      overflow: hidden;
+      background:
+        radial-gradient(ellipse at 80% 0%, rgba(110, 140, 220, 0.18), transparent 60%),
+        var(--sky-bg);
+      border: 1px solid var(--sky-border);
+      border-radius: var(--radius-md);
+    }
+
+    .universe-sky {
+      display: block;
+    }
+
+    .universe-constellation {
+      fill: none;
+      stroke: rgba(205, 214, 244, 0.2);
+      stroke-width: 1;
+    }
+
+    .universe-star {
+      cursor: pointer;
+      transform-box: fill-box;
+      transform-origin: center;
+      transition: transform var(--motion-fast) var(--ease-out);
+    }
+
+    .universe-star--observation {
+      fill: #8cc4ff;
+    }
+
+    .universe-star--summary {
+      fill: #f5c86a;
+    }
+
+    .universe-star--prompt {
+      fill: #c3a8ff;
+    }
+
+    .universe-star:hover,
+    .universe-star.is-active {
+      transform: scale(1.8);
+      stroke: #ffffff;
+      stroke-width: 0.75;
+    }
+
+    .universe-caption {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 4px 16px;
+      margin-top: 8px;
+      font-size: var(--text-meta);
+      color: var(--color-text-secondary);
+    }
+
+    .universe-focus {
+      flex: 1 1 320px;
+      min-width: 0;
+    }
+
+    .universe-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .universe-key::before {
+      content: '';
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin-right: 4px;
+      border-radius: 50%;
+    }
+
+    .universe-key--observation::before {
+      background: #4f8fd6;
+    }
+
+    .universe-key--summary::before {
+      background: #d9a63c;
+    }
+
+    .universe-key--prompt::before {
+      background: #9277d6;
+    }
+
+    .card:focus-visible {
+      outline-offset: 4px;
     }
 
     /* ---------- Reduced motion: instant, or opacity only ---------- */

@@ -117,6 +117,7 @@ export function SessionDetailPage({
       hasMore={hasMore}
       loadError={loadError}
       emptyState={emptyState}
+      universeItems={items}
     />
   );
 }

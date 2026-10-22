@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { UserPrompt } from '../types';
+import { memoryAnchorId } from './MemoryUniverse';
 import { formatDate } from '../utils/formatters';
 
 interface PromptCardProps {
@@ -24,7 +25,7 @@ export function PromptCard({ prompt }: PromptCardProps) {
   const clamped = isLong && !expanded;
 
   return (
-    <article className="card prompt-card">
+    <article className="card prompt-card" id={memoryAnchorId({ itemType: 'prompt', id: prompt.id })} tabIndex={-1}>
       <div className="card-header">
         <div className="card-header-left">
           <span className="card-type">Prompt</span>

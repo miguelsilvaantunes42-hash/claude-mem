@@ -50,14 +50,14 @@ for (const mode of ['more', 'exhausted', 'loading'] as const) {
         (async () => {
           try {
             const deadline = Date.now() + 6000;
-            while (!document.querySelector('[title="Filter to Bugfix"]')) {
+            while (![...document.querySelectorAll('.filter-chip')].find(b => b.textContent.startsWith('Bugfix'))) {
               if (Date.now() > deadline) throw new Error('Session did not render');
               await new Promise(resolve => setTimeout(resolve, 10));
             }
             await settle();
-            document.querySelector('[title="Filter to Bugfix"]').click(); await settle();
+            [...document.querySelectorAll('.filter-chip')].find(b => b.textContent.startsWith('Bugfix')).click(); await settle();
             const beforeDelete = [...document.querySelectorAll('.card-title')].map(x => x.textContent);
-            document.querySelector('[title="Delete observation"]').click();
+            document.querySelector('[aria-label="Delete observation"]').click();
             const until = Date.now() + 1800;
             while (document.body.textContent.includes('OWNED_LOADED_BUGFIX') || !document.body.textContent.includes('OWNED_OLDER_BUGFIX')) {
               if (Date.now() > until) break;

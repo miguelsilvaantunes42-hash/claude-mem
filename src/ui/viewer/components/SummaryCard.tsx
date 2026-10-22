@@ -1,5 +1,6 @@
 import React from "react";
 import { Summary } from "../types";
+import { memoryAnchorId } from './MemoryUniverse';
 import { formatDate } from "../utils/formatters";
 import { DeleteButton } from "./DeleteButton";
 import type { DeletableItemType } from "../utils/feed-deletion";
@@ -21,7 +22,7 @@ export function SummaryCard({ summary, onDeleted }: SummaryCardProps) {
   ].filter((section) => section.content);
 
   return (
-    <article className="card summary-card">
+    <article className="card summary-card" id={memoryAnchorId({ itemType: 'summary', id: summary.id })} tabIndex={-1}>
       <header className="summary-card-header">
         <div className="card-header">
           <div className="card-header-left">
