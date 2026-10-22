@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Observation } from '../types';
+import { memoryAnchorId } from './MemoryUniverse';
 import { formatDate } from '../utils/formatters';
 import { DeleteButton } from './DeleteButton';
 import type { DeletableItemType } from '../utils/feed-deletion';
@@ -45,7 +46,7 @@ export function ObservationCard({ observation, onDeleted }: ObservationCardProps
   const source = observation.platform_source || 'claude';
 
   return (
-    <article className="card observation-card">
+    <article className="card observation-card" id={memoryAnchorId({ itemType: 'observation', id: observation.id })} tabIndex={-1}>
       <div className="card-header">
         <div className="card-header-left">
           <span className={`card-type type-${observation.type}`}>{labelForCategory(observation.type)}</span>

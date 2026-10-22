@@ -7,6 +7,7 @@ import { PromptCard } from './PromptCard';
 import { ScrollToTop } from './ScrollToTop';
 import { ErrorNotice } from './ErrorNotice';
 import { EmptyState, FeedSkeleton, useDelayedFlag } from './FeedStates';
+import { MemoryUniverse } from './MemoryUniverse';
 import { UI } from '../constants/ui';
 
 interface FeedProps {
@@ -24,11 +25,13 @@ interface FeedProps {
   onClearProjectFilter?: () => void;
   /** Replaces the default first-use empty state (e.g. a filtered session). */
   emptyState?: React.ReactNode;
+  /** Memories drawn in the universe above the cards; omit to hide it. */
+  universeItems?: FeedItem[];
 }
 
 export function Feed({
   items, header, onLoadMore, onDeleted, isLoading, hasMore, loadError,
-  projectFilter, onClearProjectFilter, emptyState,
+  projectFilter, onClearProjectFilter, emptyState, universeItems,
 }: FeedProps) {
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const feedRef = useRef<HTMLDivElement>(null);
@@ -74,6 +77,7 @@ export function Feed({
       <ScrollToTop targetRef={feedRef} />
       <div className="feed-content">
         {header}
+        {universeItems && <MemoryUniverse items={universeItems} isPartial={hasMore} />}
         {items.map(item => {
           const key = `${item.itemType}-${item.id}`;
           if (item.itemType === 'observation') {

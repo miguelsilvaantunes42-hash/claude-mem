@@ -312,8 +312,8 @@ export function App() {
     <PageHeader
       tabs={tabs}
       description={route.view === 'timeline'
-        ? 'Observations, summaries, and prompts captured as you work, newest first.'
-        : 'Every coding session claude-mem recorded, with the memories captured in it.'}
+        ? 'Everything Claude has stored from your coding sessions. Each star is one memory; the cards below are the same memories, newest first.'
+        : 'Every coding session is a constellation of the memories captured in it. Open one to see its stars.'}
     />
   );
 
@@ -370,6 +370,7 @@ export function App() {
         items={feedItems}
         projectFilter={currentFilter}
         onClearProjectFilter={() => setCurrentFilter('')}
+        universeItems={feedItems}
         onLoadMore={handleLoadMore}
         onDeleted={removeDeletedItem}
         isLoading={isLoading}
