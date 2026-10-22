@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 interface WelcomeCardProps {
   onDismiss: () => void;
@@ -33,12 +33,13 @@ function DismissButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
-      className="welcome-modal-dismiss"
+      className="icon-btn welcome-modal-dismiss"
       onClick={onClick}
-      aria-label="Close welcome"
-      title="Close (Esc)"
+      aria-label="Close welcome guide"
+      data-tooltip="Close welcome guide"
+      data-tooltip-align="end"
     >
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <line x1="18" y1="6" x2="6" y2="18"></line>
         <line x1="6" y1="6" x2="18" y2="18"></line>
       </svg>
@@ -149,7 +150,7 @@ const FEATURES: Feature[] = [
     kind: 'tune',
     illustration: <TuneIllustration />,
     title: 'Tune it',
-    description: 'The gear in the top-right tunes memory injection.',
+    description: 'Settings choose what gets injected into each new session.',
   },
   {
     kind: 'recall',
@@ -160,10 +161,21 @@ const FEATURES: Feature[] = [
 ];
 
 export function WelcomeCard({ onDismiss }: WelcomeCardProps) {
+  const dialogRef = useRef<HTMLElement>(null);
+
   const handleDismiss = () => {
     setStoredWelcomeDismissed(true);
     onDismiss();
   };
+
+  // Focus moves into the dialog on open and back to the trigger on close.
+  useEffect(() => {
+    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.querySelector<HTMLElement>('.welcome-modal-dismiss')?.focus();
+    return () => {
+      if (trigger?.isConnected) trigger.focus();
+    };
+  }, []);
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -174,11 +186,29 @@ export function WelcomeCard({ onDismiss }: WelcomeCardProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Tab cycles inside the dialog while it is open.
+  const trapFocus = (event: React.KeyboardEvent) => {
+    if (event.key !== 'Tab' || !dialogRef.current) return;
+    const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>('button, a[href]')];
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   return (
     <div className="welcome-modal-backdrop" onClick={handleDismiss}>
       <article
+        ref={dialogRef}
         className="welcome-modal"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={trapFocus}
         role="dialog"
         aria-modal="true"
         aria-labelledby="welcome-modal-title"
@@ -205,9 +235,8 @@ export function WelcomeCard({ onDismiss }: WelcomeCardProps) {
 
         <footer className="welcome-modal-footer">
           <a href={EXPLAINER_URL} target="_blank" rel="noopener noreferrer">
-            How it works
+            See how it works
           </a>
-          <span className="welcome-modal-footer-sep">{'·'}</span>
           <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
             Read the docs
           </a>

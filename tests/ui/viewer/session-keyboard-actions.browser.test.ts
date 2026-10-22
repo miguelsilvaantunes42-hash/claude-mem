@@ -19,7 +19,7 @@ for (const key of ['Enter', 'Space'] as const) {
         import React from 'react';
         import { createRoot } from 'react-dom/client';
         import { SessionCard } from './src/ui/viewer/components/SessionCard';
-        window.opens = 0; window.deletes = 0; window.confirm = () => true;
+        window.opens = 0; window.deletes = 0; new MutationObserver(()=>document.querySelector('.confirm-dialog-confirm')?.click()).observe(document.body,{childList:true,subtree:true});
         createRoot(document.getElementById('root')).render(<SessionCard session={${JSON.stringify(session)}}
           onOpen={() => window.opens++} onDelete={async () => { window.deletes++; }} />);
       ` },

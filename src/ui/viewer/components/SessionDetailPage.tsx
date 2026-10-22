@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Feed } from './Feed';
 import { CategoryFilter } from './CategoryFilter';
+import { EmptyState } from './FeedStates';
 import { FeedItem } from '../types';
 import type { DeletableItemType } from '../utils/feed-deletion';
 import { categoryOf, countByCategory } from '../utils/category';
@@ -51,29 +52,59 @@ export function SessionDetailPage({
     });
   }, []);
 
+  const clearCategories = useCallback(() => setActiveCategories(new Set()), []);
+  const heading = title ?? 'Session details';
+
   const header = (
     <>
       {tabs}
       <div className="session-detail-header">
-        <button className="session-detail-back" onClick={onBack}>
-          ← Back to sessions
-        </button>
+        <nav className="breadcrumb" aria-label="Breadcrumb">
+          <a
+            className="breadcrumb-link session-detail-back"
+            href="#/sessions"
+            onClick={e => {
+              e.preventDefault();
+              onBack();
+            }}
+          >
+            Sessions
+          </a>
+          <span className="breadcrumb-sep" aria-hidden="true">/</span>
+          <span className="breadcrumb-current" aria-current="page">{heading}</span>
+        </nav>
         <div className="session-detail-title-group">
-          {title && <span className="session-detail-title">{title}</span>}
-          <span className="session-detail-id" title={session.contentSessionId}>
-            {session.platformSource} · {session.contentSessionId}
-          </span>
+          <h2 className="session-detail-title">{heading}</h2>
+          <p className="session-detail-meta">
+            <span className="session-detail-platform">{session.platformSource}</span>
+            <span className="session-detail-id" title={session.contentSessionId}>{session.contentSessionId}</span>
+          </p>
         </div>
       </div>
       <CategoryFilter
         categoryCounts={categoryCounts}
         activeCategories={activeCategories}
         onToggle={toggleCategory}
+        onClear={clearCategories}
         filteredCount={filteredItems.length}
         totalCount={items.length}
         totalIsPartial={hasMore}
       />
     </>
+  );
+
+  const emptyState = activeCategories.size > 0 && items.length > 0 ? (
+    <EmptyState
+      title="No memories match these filters"
+      description="Loaded memories in this session belong to other categories. Clear the filters to see all of them."
+      action={<button type="button" className="btn btn-primary" onClick={clearCategories}>Clear all filters</button>}
+    />
+  ) : (
+    <EmptyState
+      title="No memories in this session"
+      description="Nothing from this session is stored. Memories captured while it runs appear here as they arrive."
+      action={<button type="button" className="btn btn-secondary" onClick={onBack}>View all sessions</button>}
+    />
   );
 
   return (
@@ -85,6 +116,8 @@ export function SessionDetailPage({
       isLoading={isLoading}
       hasMore={hasMore}
       loadError={loadError}
+      emptyState={emptyState}
+      universeItems={items}
     />
   );
 }

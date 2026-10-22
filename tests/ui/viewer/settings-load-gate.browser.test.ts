@@ -53,7 +53,7 @@ for (const scenario of ['held', 'failed'] as const) {
         const observations = () => [...document.querySelectorAll('.form-field')]
           .find(field => field.textContent.startsWith('Observations'))?.querySelector('input');
         const status = () => document.querySelector('.save-status').textContent;
-        const snapshot = () => ({ saveDisabled: save().disabled, inputDisabled: observations().matches(':disabled'),
+        const snapshot = () => ({ saveDisabled: save().getAttribute('aria-disabled') === 'true', inputDisabled: observations().matches(':disabled'),
           observations: observations().value, status: status() });
         let blocked;
         (async () => {
@@ -64,14 +64,14 @@ for (const scenario of ['held', 'failed'] as const) {
             await fetch('/first-load-seen');
             // Wait for the load status, but take the snapshot and click Save
             // even without it, so a build that lets Save through shows its POST.
-            await until(() => status().includes(${scenario === 'held' ? "'Loading settings'" : "'Could not load settings'"}), 'Load status').catch(() => {});
+            await until(() => status().includes(${scenario === 'held' ? "'Loading settings'" : "'could not be loaded'"}), 'Load status').catch(() => {});
             const retry = [...document.querySelectorAll('.save-status button')].find(button => button.textContent === 'Retry');
             blocked = { ...snapshot(), retry: !!retry };
             save().click(); await settle();
             if (${scenario === 'held'}) await fetch('/release-load');
             else if (retry) retry.click();
             else throw new Error('No Retry after the failed load');
-            await until(() => !save().disabled && observations().value === '7', 'Settings load');
+            await until(() => save().getAttribute('aria-disabled') !== 'true' && observations().value === '7', 'Settings load');
             await settle();
             const loaded = snapshot();
             save().click();
@@ -131,7 +131,7 @@ for (const scenario of ['held', 'failed'] as const) {
       // posts nothing (it would have posted the defaults).
       expect({ ...reported.blocked, postsBeforeLoad: posts.slice(0, postsWhenLoaded ?? posts.length) }).toEqual({
         saveDisabled: true, inputDisabled: true, observations: '50',
-        status: scenario === 'held' ? 'Loading settings…' : 'Could not load settings: HTTP 500 Retry',
+        status: scenario === 'held' ? 'Loading settings…' : 'Your saved settings could not be loaded, so Save is paused to keep them safe.RetryCopy error details',
         retry: scenario === 'failed', postsBeforeLoad: [],
       });
       expect(reported.failure).toBeUndefined();

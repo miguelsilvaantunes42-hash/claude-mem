@@ -70,7 +70,7 @@ async function reportAfterReady(ready: Promise<void>, result: Promise<unknown>, 
           }
         }
         function messages() { return [...document.querySelectorAll('.log-message')].map(x => x.textContent); }
-        window.confirm = () => true;
+        new MutationObserver(()=>document.querySelector('.confirm-dialog-confirm')?.click()).observe(document.body,{childList:true,subtree:true});
         (async () => {
           try {
             await fetch('/ready');
@@ -78,7 +78,7 @@ async function reportAfterReady(ready: Promise<void>, result: Promise<unknown>, 
             document.querySelector('.console-auto-refresh input').click();
             await waitFor(() => messages().includes('LATEST'));
             document.querySelector('.console-auto-refresh input').click();
-            const clear = document.querySelector('[title="Clear logs"]');
+            const clear = document.querySelector('[aria-label="Clear logs"]');
             await waitFor(() => !clear.disabled);
             clear.click();
             await waitFor(() => !clear.disabled && messages().length === 0);
@@ -146,14 +146,14 @@ async function reportAfterReady(ready: Promise<void>, result: Promise<unknown>, 
         import {createRoot} from 'react-dom/client';
         import {LogsDrawer} from './src/ui/viewer/components/LogsModal';
         createRoot(document.getElementById('root')).render(<LogsDrawer isOpen={true} onClose={()=>{}}/>);
-        window.confirm=()=>true;
+        new MutationObserver(()=>document.querySelector('.confirm-dialog-confirm')?.click()).observe(document.body,{childList:true,subtree:true});
         async function waitFor(test){const end=Date.now()+10000;while(!test()){if(Date.now()>end)throw Error('Browser state timeout');await new Promise(r=>setTimeout(r,10));}}
         (async()=>{try{
           await fetch('/ready');
           await waitFor(()=>document.querySelector('.log-message'));
           document.querySelector('.console-auto-refresh input').click();
-          document.querySelector('[title="Clear logs"]').click();
-          await waitFor(()=>!document.querySelector('[title="Clear logs"]').disabled);
+          document.querySelector('[aria-label="Clear logs"]').click();
+          await waitFor(()=>!document.querySelector('[aria-label="Clear logs"]').disabled);
           await waitFor(()=>[...document.querySelectorAll('.log-message')].some(x=>x.textContent==='RECOVERED'));
           await fetch('/result',{method:'POST',body:JSON.stringify({recovered:true})});
         }catch(error){await fetch('/result',{method:'POST',body:JSON.stringify({failure:String(error)})})}})();
@@ -194,12 +194,12 @@ for(const scenario of ['reconciled','read-hung'] as const) {
         import React from 'react';import {createRoot} from 'react-dom/client';
         import {LogsDrawer} from './src/ui/viewer/components/LogsModal';
         createRoot(document.getElementById('root')).render(<LogsDrawer isOpen={true} onClose={()=>{}}/>);
-        window.confirm=()=>true;
+        new MutationObserver(()=>document.querySelector('.confirm-dialog-confirm')?.click()).observe(document.body,{childList:true,subtree:true});
         async function waitFor(test){const end=Date.now()+13000;while(!test()){if(Date.now()>end)throw Error('Browser state timeout');await new Promise(r=>setTimeout(r,10));}}
         (async()=>{try{
           await fetch('/ready');
           await waitFor(()=>document.querySelector('.log-message'));
-          const clear=document.querySelector('[title="Clear logs"]');clear.click();
+          const clear=document.querySelector('[aria-label="Clear logs"]');clear.click();
           await waitFor(()=>clear.disabled);await waitFor(()=>!clear.disabled);
           await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
           await fetch('/result',{method:'POST',body:JSON.stringify({messages:[...document.querySelectorAll('.log-message')].map(row=>row.textContent),unknown:document.querySelector('.console-error')?.textContent.includes('outcome is unknown')??false,autoRefresh:document.querySelector('.console-auto-refresh input').checked})});

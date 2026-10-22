@@ -51,7 +51,7 @@ for(const scenario of ['item','recreated-visible','recreated-session','late-dele
             await until(()=>document.querySelector('.session-card-count')?.textContent==='1 memory');
             await fetch('/snapshot-started');
             if(['late-delete-response','live-before-delete'].includes(${JSON.stringify(scenario)})) {
-              window.confirm=()=>true;
+              new MutationObserver(()=>document.querySelector('.confirm-dialog-confirm')?.click()).observe(document.body,{childList:true,subtree:true});
               document.querySelector('.session-card-menu-trigger').click();await paint();
               document.querySelector('.session-card-menu-item--danger').click();
             } else await fetch('/delete');
@@ -63,7 +63,7 @@ for(const scenario of ['item','recreated-visible','recreated-session','late-dele
                 location.hash='';await paint();location.hash='#/sessions';
                 await until(()=>document.querySelector('.session-card-count')?.textContent==='1 memory');
                 document.querySelector('.session-card').click();
-                await until(()=>document.body.textContent.includes('RECREATED_CAPTURE')||document.body.textContent.includes('No items to display'));
+                await until(()=>document.body.textContent.includes('RECREATED_CAPTURE')||document.body.textContent.includes('No memories in this session'));
                 await fetch('/result',{method:'POST',body:JSON.stringify({detailFresh:document.body.textContent.includes('RECREATED_CAPTURE')})});return;
               }
               await until(()=>document.querySelector('.session-card-count')?.textContent===(${JSON.stringify(scenario)}==='live-before-delete'?'2 memories':'1 memory'));

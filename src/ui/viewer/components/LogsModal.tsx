@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { confirmDestructive } from './ConfirmDialog';
 
 type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 type LogComponent = 'HOOK' | 'WORKER' | 'SDK' | 'PARSER' | 'DB' | 'SYSTEM' | 'HTTP' | 'SESSION' | 'CHROMA' | 'OTHER';
@@ -13,24 +14,24 @@ interface ParsedLogLine {
   isSpecial?: 'dataIn' | 'dataOut' | 'success' | 'failure' | 'timing' | 'happyPath';
 }
 
-const LOG_LEVELS: { key: LogLevel; label: string; icon: string; color: string }[] = [
-  { key: 'DEBUG', label: 'Debug', icon: '🔍', color: '#8b8b8b' },
-  { key: 'INFO', label: 'Info', icon: 'ℹ️', color: '#58a6ff' },
-  { key: 'WARN', label: 'Warn', icon: '⚠️', color: '#d29922' },
-  { key: 'ERROR', label: 'Error', icon: '❌', color: '#f85149' },
+const LOG_LEVELS: { key: LogLevel; label: string; color: string }[] = [
+  { key: 'DEBUG', label: 'Debug', color: '#8b8b8b' },
+  { key: 'INFO', label: 'Info', color: '#58a6ff' },
+  { key: 'WARN', label: 'Warn', color: '#d29922' },
+  { key: 'ERROR', label: 'Error', color: '#f85149' },
 ];
 
-const LOG_COMPONENTS: { key: LogComponent; label: string; icon: string; color: string }[] = [
-  { key: 'HOOK', label: 'Hook', icon: '🪝', color: '#a371f7' },
-  { key: 'WORKER', label: 'Worker', icon: '⚙️', color: '#58a6ff' },
-  { key: 'SDK', label: 'SDK', icon: '📦', color: '#3fb950' },
-  { key: 'PARSER', label: 'Parser', icon: '📄', color: '#79c0ff' },
-  { key: 'DB', label: 'DB', icon: '🗄️', color: '#f0883e' },
-  { key: 'SYSTEM', label: 'System', icon: '💻', color: '#8b949e' },
-  { key: 'HTTP', label: 'HTTP', icon: '🌐', color: '#39d353' },
-  { key: 'SESSION', label: 'Session', icon: '📋', color: '#db61a2' },
-  { key: 'CHROMA', label: 'Chroma', icon: '🔮', color: '#a855f7' },
-  { key: 'OTHER', label: 'Other', icon: '🧩', color: '#8b949e' },
+const LOG_COMPONENTS: { key: LogComponent; label: string; color: string }[] = [
+  { key: 'HOOK', label: 'Hook', color: '#a371f7' },
+  { key: 'WORKER', label: 'Worker', color: '#58a6ff' },
+  { key: 'SDK', label: 'SDK', color: '#3fb950' },
+  { key: 'PARSER', label: 'Parser', color: '#79c0ff' },
+  { key: 'DB', label: 'DB', color: '#f0883e' },
+  { key: 'SYSTEM', label: 'System', color: '#8b949e' },
+  { key: 'HTTP', label: 'HTTP', color: '#39d353' },
+  { key: 'SESSION', label: 'Session', color: '#db61a2' },
+  { key: 'CHROMA', label: 'Chroma', color: '#a855f7' },
+  { key: 'OTHER', label: 'Other', color: '#8b949e' },
 ];
 
 // The logger has more components than there are chips; the rest are filtered by the Other chip.
@@ -158,7 +159,12 @@ export function LogsDrawer({ isOpen, onClose }: LogsDrawerProps) {
   }, [logs, scrollToBottom]);
 
   const handleClearLogs = useCallback(async () => {
-    if (!confirm('Are you sure you want to clear all logs?')) {
+    const confirmed = await confirmDestructive({
+      title: 'Clear all worker logs?',
+      body: 'The worker log file is emptied for every viewer. Logs written after this keep appearing here. This cannot be undone.',
+      confirmLabel: 'Clear logs',
+    });
+    if (!confirmed) {
       return;
     }
     const request = ++requestSeqRef.current;
@@ -338,11 +344,11 @@ export function LogsDrawer({ isOpen, onClose }: LogsDrawerProps) {
         <span className="log-timestamp">[{line.timestamp}]</span>
         {' '}
         <span className="log-level" style={{ color: levelConfig?.color }} title={line.level}>
-          [{levelConfig?.icon || ''} {line.level?.padEnd(5)}]
+          [{line.level?.padEnd(5)}]
         </span>
         {' '}
         <span className="log-component" style={{ color: componentConfig?.color }} title={line.component}>
-          [{componentConfig?.icon || ''} {line.component?.padEnd(7)}]
+          [{line.component?.padEnd(7)}]
         </span>
         {' '}
         {line.correlationId && (
@@ -357,18 +363,34 @@ export function LogsDrawer({ isOpen, onClose }: LogsDrawerProps) {
   };
 
   return (
-    <div className="console-drawer" style={{ height: `${height}px` }}>
+    <section
+      className="console-drawer"
+      style={{ height: `${height}px` }}
+      aria-label="Worker console"
+      onKeyDown={e => {
+        if (e.key === 'Escape') onClose();
+      }}
+    >
       <div
         className="console-resize-handle"
         onMouseDown={handleMouseDown}
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize console"
+        aria-valuenow={height}
+        tabIndex={0}
+        onKeyDown={e => {
+          if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+          e.preventDefault();
+          const step = e.key === 'ArrowUp' ? 32 : -32;
+          setHeight(current => Math.min(Math.max(150, current + step), window.innerHeight - 100));
+        }}
       >
         <div className="console-resize-bar" />
       </div>
 
       <div className="console-header">
-        <div className="console-tabs">
-          <div className="console-tab active">Console</div>
-        </div>
+        <h2 className="console-title">Console</h2>
         <div className="console-controls">
           <label className="console-auto-refresh">
             <input
@@ -379,37 +401,58 @@ export function LogsDrawer({ isOpen, onClose }: LogsDrawerProps) {
             Auto-refresh
           </label>
           <button
-            className="console-control-btn"
+            type="button"
+            className="icon-btn icon-btn--small console-control-btn"
             onClick={fetchLogs}
             disabled={isLoading}
-            title="Refresh logs"
+            aria-label="Refresh logs"
+            data-tooltip="Refresh logs"
           >
-            ↻
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
           </button>
           <button
-            className="console-control-btn"
+            type="button"
+            className="icon-btn icon-btn--small console-control-btn"
             onClick={() => {
               wasAtBottomRef.current = true;
               scrollToBottom();
             }}
-            title="Scroll to bottom"
+            aria-label="Scroll to newest log"
+            data-tooltip="Scroll to newest log"
           >
-            ⬇
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <polyline points="19 12 12 19 5 12"></polyline>
+            </svg>
           </button>
           <button
-            className="console-control-btn console-clear-btn"
+            type="button"
+            className="icon-btn icon-btn--small console-control-btn console-clear-btn"
             onClick={handleClearLogs}
             disabled={isLoading}
-            title="Clear logs"
+            aria-label="Clear logs"
+            data-tooltip="Clear logs"
           >
-            🗑
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
           </button>
           <button
-            className="console-control-btn"
+            type="button"
+            className="icon-btn icon-btn--small console-control-btn"
             onClick={onClose}
-            title="Close console"
+            aria-label="Close console"
+            data-tooltip="Close console"
+            data-tooltip-align="end"
           >
-            ✕
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
           </button>
         </div>
       </div>
@@ -427,7 +470,7 @@ export function LogsDrawer({ isOpen, onClose }: LogsDrawerProps) {
               } as React.CSSProperties}
               title="Show only session alignment logs"
             >
-              🔗 Alignment
+              Alignment
             </button>
           </div>
         </div>
@@ -444,15 +487,14 @@ export function LogsDrawer({ isOpen, onClose }: LogsDrawerProps) {
                 } as React.CSSProperties}
                 title={level.label}
               >
-                {level.icon} {level.label}
+                {level.label}
               </button>
             ))}
             <button
               className="console-filter-action"
               onClick={() => setAllLevels(activeLevels.size !== LOG_LEVELS.length)}
-              title={activeLevels.size === LOG_LEVELS.length ? 'Select none' : 'Select all'}
             >
-              {activeLevels.size === LOG_LEVELS.length ? '○' : '●'}
+              {activeLevels.size === LOG_LEVELS.length ? 'Select none' : 'Select all'}
             </button>
           </div>
         </div>
@@ -469,23 +511,22 @@ export function LogsDrawer({ isOpen, onClose }: LogsDrawerProps) {
                 } as React.CSSProperties}
                 title={comp.label}
               >
-                {comp.icon} {comp.label}
+                {comp.label}
               </button>
             ))}
             <button
               className="console-filter-action"
               onClick={() => setAllComponents(activeComponents.size !== LOG_COMPONENTS.length)}
-              title={activeComponents.size === LOG_COMPONENTS.length ? 'Select none' : 'Select all'}
             >
-              {activeComponents.size === LOG_COMPONENTS.length ? '○' : '●'}
+              {activeComponents.size === LOG_COMPONENTS.length ? 'Select none' : 'Select all'}
             </button>
           </div>
         </div>
       </div>
 
       {error && (
-        <div className="console-error">
-          ⚠ {error}
+        <div className="console-error" role="alert">
+          {error}
         </div>
       )}
 
@@ -498,6 +539,6 @@ export function LogsDrawer({ isOpen, onClose }: LogsDrawerProps) {
           )}
         </div>
       </div>
-    </div>
+    </section>
   );
 }

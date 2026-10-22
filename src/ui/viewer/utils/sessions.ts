@@ -41,9 +41,15 @@ export function sessionRefOf(row: SessionScopedRow): SessionRef | null {
 export type ViewRoute =
   | { view: 'timeline' }
   | { view: 'sessions' }
-  | { view: 'session'; session: SessionRef };
+  | { view: 'session'; session: SessionRef }
+  | { view: 'settings' };
 
 const SESSIONS_HASH = '#/sessions';
+const SETTINGS_HASH = '#/settings';
+
+export function settingsHash(): string {
+  return SETTINGS_HASH;
+}
 
 export function sessionsHash(): string {
   return SESSIONS_HASH;
@@ -53,8 +59,12 @@ export function sessionHash(ref: SessionRef): string {
   return `${SESSIONS_HASH}/${encodeURIComponent(ref.platformSource)}/${encodeURIComponent(ref.contentSessionId)}`;
 }
 
-/** `#/sessions` is the list, `#/sessions/<platform>/<id>` one session; anything else is the timeline. */
+/**
+ * `#/sessions` is the list, `#/sessions/<platform>/<id>` one session,
+ * `#/settings` the settings page; anything else is the timeline.
+ */
 export function parseViewRoute(hash: string): ViewRoute {
+  if (hash === SETTINGS_HASH) return { view: 'settings' };
   if (hash === SESSIONS_HASH) return { view: 'sessions' };
   if (!hash.startsWith(`${SESSIONS_HASH}/`)) return { view: 'timeline' };
   const parts = hash.slice(SESSIONS_HASH.length + 1).split('/');
