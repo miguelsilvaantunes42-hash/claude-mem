@@ -767,6 +767,26 @@
       display: none;
     }
 
+    /* My Work: the worker's root page (local work and review queue). */
+    .local-work-link {
+      display: inline-flex;
+      align-items: center;
+      height: 32px;
+      padding: 0 12px;
+      flex-shrink: 0;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      color: var(--color-text-primary);
+      font-size: var(--text-meta);
+      font-weight: 600;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+
+    .local-work-link:hover {
+      background: var(--surface-2);
+    }
+
     .teambrain-cta {
       display: inline-flex;
       align-items: center;
@@ -918,7 +938,8 @@
         font-size: 18px;
       }
 
-      .teambrain-cta {
+      .teambrain-cta,
+      .local-work-link {
         display: none;
       }
 

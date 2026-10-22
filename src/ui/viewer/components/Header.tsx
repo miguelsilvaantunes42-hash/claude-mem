@@ -140,6 +140,9 @@ function HeaderMenu(props: HeaderProps) {
       {open && (
         <div className="header-menu-panel" id={panelId}>
           <div className="header-menu-group only-narrow">
+            <a className="menu-item" href="/" onClick={closeThen()}>
+              <span className="menu-item-text">Open My Work</span>
+            </a>
             <ProjectFilter projects={props.projects} currentFilter={props.currentFilter} onFilterChange={props.onFilterChange} />
             <button type="button" className="menu-item" onClick={closeThen(props.onContextPreviewToggle)}>
               <SettingsIcon /> Open settings
